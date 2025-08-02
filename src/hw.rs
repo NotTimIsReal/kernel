@@ -1,4 +1,4 @@
-use crate::HHDM_REQUEST;
+use crate::{EXECUTABLE_MEM_REQUEST, HHDM_REQUEST};
 
 pub struct Pointer {
     pub addr: usize,
@@ -17,10 +17,10 @@ impl Pointer {
         self.addr as *const T
     }
     pub fn write(&self, value: u8) {
-        let off = HHDM_REQUEST.get_response().unwrap().offset();
-        // let off = 0;
+        //let off = HHDM_REQUEST.get_response().unwrap().offset();
+        let off = 0;
         unsafe {
-            ((self.addr + off as usize) as *mut u8).write_volatile(value);
+            ((self.addr + off as usize) as *mut u8).write(value);
         }
     }
     pub fn read(&self) -> u8 {

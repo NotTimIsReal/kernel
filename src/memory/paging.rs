@@ -6,7 +6,9 @@ use buddy_system_allocator::{Heap, LockedHeap};
 use core::{arch::asm, ptr::NonNull, slice::SplitInclusiveMut};
 use limine::memory_map::EntryType;
 
-use crate::{HHDM_REQUEST, MEMORY_MAP_REQUEST, println};
+use crate::{
+    EXECUTABLE_MEM_REQUEST, HHDM_REQUEST, MEMORY_MAP_REQUEST, memory::init_arm64, println,
+};
 #[global_allocator]
 static ALLOCATOR: LockedHeap<32> = LockedHeap::new();
 const HEAP_SIZE: usize = 1024 * 1024; // 1 MiB
@@ -30,6 +32,9 @@ struct ARM64MemorySetup {}
 #[cfg(target_arch = "aarch64")]
 impl MemorySetupT for ARM64MemorySetup {
     fn new() -> Self {
+        // Initialize the MAIR register
+        let mair = init_arm64::MairRegister::new();
+        mair.setup();
         ARM64MemorySetup {}
     }
 
@@ -46,11 +51,12 @@ impl MemorySetupT for ARM64MemorySetup {
         let mem_map = MEMORY_MAP_REQUEST.get_response().unwrap().entries();
 
         for entry in mem_map {
-            let mut idmap =
-                idmap::IdMap::new(1, 1, aarch64_paging::paging::TranslationRegime::El1And0);
+            let mut idmap: IdMap;
             //check if 0x900_0000 is in the reserved region
             match entry.entry_type {
                 EntryType::USABLE => {
+                    idmap =
+                        idmap::IdMap::new(2, 1, aarch64_paging::paging::TranslationRegime::El1And0);
                     println!("{:#X} - {:#X}", entry.base, entry.base + entry.length,);
                     idmap
                         .map_range(
@@ -68,6 +74,8 @@ impl MemorySetupT for ARM64MemorySetup {
                     //     entry.base,
                     //     entry.base + entry.length
                     // );
+                    idmap =
+                        idmap::IdMap::new(1, 1, aarch64_paging::paging::TranslationRegime::El1And0);
 
                     idmap
                         .map_range(
@@ -91,6 +99,8 @@ impl MemorySetupT for ARM64MemorySetup {
                 //         .unwrap();
                 // }
                 _ => {
+                    idmap =
+                        idmap::IdMap::new(1, 1, aarch64_paging::paging::TranslationRegime::El1And0);
                     idmap
                         .map_range(
                             &MemoryRegion::new(
@@ -103,7 +113,7 @@ impl MemorySetupT for ARM64MemorySetup {
                 }
             }
             unsafe {
-                idmap.activate();
+                let ret = idmap.activate();
             }
             #[allow(static_mut_refs)]
             unsafe {

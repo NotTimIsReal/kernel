@@ -29,7 +29,10 @@ use crate::text::TermEmulator;
 // The .requests section allows limine to find the requests faster and more safely.
 #[unsafe(link_section = ".requests")]
 static BASE_REVISION: BaseRevision = BaseRevision::new();
-
+#[used]
+#[unsafe(link_section = ".requests")]
+static EXECUTABLE_MEM_REQUEST: limine::request::ExecutableAddressRequest =
+    limine::request::ExecutableAddressRequest::new();
 #[used]
 #[unsafe(link_section = ".requests")]
 static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
@@ -91,11 +94,15 @@ unsafe extern "C" fn kmain() -> ! {
     let paging_offset = HHDM_REQUEST.get_response().unwrap().offset();
     println!("HHDM Offset: {:#X}", paging_offset);
     paging::MemorySetup::new().map();
-    crate::dtb::DTBReader::new(0x4000_0000).list_reserved_mem();
+    // println!("{:#?}", DTB_REQUEST.get_response().unwrap().dtb_ptr());
+    crate::dtb::DTBReader::new(
+        0x4000_0000 + HHDM_REQUEST.get_response().unwrap().offset() as usize,
+    )
+    .list_reserved_mem();
 
     for c in b"Hello, world!\r" {
         println!("{}", c);
-        hw::Pointer::new(0x900_0000).write(*c);
+        hw::Pointer::new(0x0900_0000).write(*c);
     }
     //PCIInterface::new().test();
     // let uart = uart::UART::default();
